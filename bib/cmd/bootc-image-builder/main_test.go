@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,6 +21,60 @@ import (
 	"github.com/osbuild/bootc-image-builder/bib/internal/buildconfig"
 	"github.com/osbuild/bootc-image-builder/bib/internal/source"
 )
+
+// Mock exec.Command for testing
+var mockExecCommand = exec.Command
+
+func TestIsBootcImage(t *testing.T) {
+	testCases := map[string]struct {
+		imgref      string
+		output      []byte
+		outputErr   error
+		expectedErr error
+	}{
+		"Valid Bootc Image": {
+			imgref:      "validImage",
+			output:      []byte(`containers.bootc:1`),
+			outputErr:   nil,
+			expectedErr: nil,
+		},
+		"Missing Bootc Label": {
+			imgref:      "missingBootcLabel",
+			output:      []byte(`some.other.label:1`),
+			outputErr:   nil,
+			expectedErr: fmt.Errorf("image does not contain the 'containers.bootc' label"),
+		},
+		"Invalid Label Format": {
+			imgref:      "invalidLabelFormat",
+			output:      []byte(`invalidLabel`),
+			outputErr:   nil,
+			expectedErr: fmt.Errorf("invalid label format: invalidLabel"),
+		},
+		"Command Execution Error": {
+			imgref:      "execError",
+			output:      nil,
+			outputErr:   errors.New("command failed"),
+			expectedErr: fmt.Errorf("failed inspect image: %w", errors.New("command failed")),
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Mock the exec.Command function
+			mockExecCommand = func(command string, args ...string) *exec.Cmd {
+				cs := []string{"-test.run=TestHelperProcess", "--", command}
+				cs = append(cs, args...)
+				cmd := exec.Command(cs[0], cs[1:]...)
+				cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1", fmt.Sprintf("STDOUT=%s", tc.output), fmt.Sprintf("STDERR=%s", tc.outputErr)}
+				return cmd
+			}
+			defer func() { mockExecCommand = exec.Command }() // Restore original exec.Command after test
+
+			err := main.IsBootcImage(tc.imgref)
+			assert.Equal(t, tc.expectedErr, err)
+		})
+	}
+}
 
 func TestCanChownInPathHappy(t *testing.T) {
 	tmpdir := t.TempDir()
@@ -570,4 +625,20 @@ func TestBuildType(t *testing.T) {
 			assert.Equal(t, bt, tc.buildType)
 		})
 	}
+}
+
+// TestHelperProcess is a helper function to mock exec.Command in tests
+func TestHelperProcess(*testing.T) {
+	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
+		return
+	}
+	stdout := os.Getenv("STDOUT")
+	stderr := os.Getenv("STDERR")
+	if stdout != "" {
+		fmt.Fprint(os.Stdout, stdout)
+	}
+	if stderr != "" {
+		fmt.Fprint(os.Stderr, stderr)
+	}
+	os.Exit(0)
 }

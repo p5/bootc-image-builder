@@ -75,6 +75,31 @@ func canChownInPath(path string) (bool, error) {
 	return checkFile.Chown(osGetuid(), osGetgid()) == nil, nil
 }
 
+// isBootcImage checks if the given image contains the label
+// "containers.bootc" with the value "1"
+func isBootcImage(imgref string) error {
+	output, err := exec.Command("podman", "inspect", "--format", "{{.Config.Labels}}", imgref).Output()
+	if err != nil {
+		return fmt.Errorf("failed inspect image: %w", util.OutputErr(err))
+	}
+
+	// Parse output to map
+	labels := strings.Split(strings.TrimSpace(string(output)), " ")
+	labelMap := make(map[string]string)
+	for _, label := range labels {
+		kv := strings.Split(label, ":")
+		if len(kv) != 2 {
+			return fmt.Errorf("invalid label format: %s", label)
+		}
+		labelMap[kv[0]] = kv[1]
+	}
+
+	if labelMap["containers.bootc"] != "1" {
+		return fmt.Errorf("image does not contain the 'containers.bootc' label")
+	}
+	return nil
+}
+
 // getContainerSize returns the size of an already pulled container image in bytes
 func getContainerSize(imgref string) (uint64, error) {
 	output, err := exec.Command("podman", "image", "inspect", imgref, "--format", "{{.Size}}").Output()
@@ -222,6 +247,11 @@ func manifestFromCobra(cmd *cobra.Command, args []string) ([]byte, *mTLSConfig, 
 		}
 	} else {
 		logrus.Debug("Using local container")
+	}
+
+	// check if the image provided is a bootc-compatible image
+	if err := isBootcImage(imgref); err != nil {
+		return nil, nil, fmt.Errorf("image %q is not a bootc-compatible image: %w", imgref, err)
 	}
 
 	cntSize, err := getContainerSize(imgref)
@@ -413,7 +443,6 @@ func cmdBuild(cmd *cobra.Command, args []string) error {
 			exports = append(exports, "image")
 		case "vmdk":
 			exports = append(exports, "vmdk")
-
 		case "anaconda-iso", "iso":
 			exports = append(exports, "bootiso")
 		default:
