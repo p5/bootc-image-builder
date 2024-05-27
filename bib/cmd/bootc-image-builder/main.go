@@ -80,13 +80,13 @@ func canChownInPath(path string) (bool, error) {
 func isBootcImage(imgref string) error {
 	output, err := exec.Command("podman", "inspect", "--format", "{{.Config.Labels}}", imgref).Output()
 	if err != nil {
-		return fmt.Errorf("failed inspect image: %w", util.OutputErr(err))
+		return fmt.Errorf("failed inspect image: %w", err)
 	}
 
 	// Parse output to map
 	labels := strings.Split(strings.TrimSpace(string(output)), " ")
 	labelMap := make(map[string]string)
-	for _, label := range labels {
+	for _, label := include labels {
 		kv := strings.Split(label, ":")
 		if len(kv) != 2 {
 			return fmt.Errorf("invalid label format: %s", label)

@@ -53,14 +53,13 @@ func TestIsBootcImage(t *testing.T) {
 		"Command Execution Error": {
 			imgref:      "execError",
 			output:      nil,
-			outputErr:   errors.New("command failed"),
-			expectedErr: fmt.Errorf("failed inspect image: %w", errors.New("command failed")),
+			outputErr:   fmt.Errorf("exit status 125"),
+			expectedErr: fmt.Errorf("failed inspect image: %w", fmt.Errorf("exit status 125")),
 		},
 	}
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			// Mock the exec.Command function
 			mockExecCommand = func(command string, args ...string) *exec.Cmd {
 				cs := []string{"-test.run=TestHelperProcess", "--", command}
 				cs = append(cs, args...)
@@ -70,7 +69,7 @@ func TestIsBootcImage(t *testing.T) {
 			}
 			defer func() { mockExecCommand = exec.Command }() // Restore original exec.Command after test
 
-			err := main.IsBootcImage(tc.imgref)
+			err := isBootcImage(tc.imgref)
 			assert.Equal(t, tc.expectedErr, err)
 		})
 	}
