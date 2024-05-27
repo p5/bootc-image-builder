@@ -86,7 +86,7 @@ func isBootcImage(imgref string) error {
 	// Parse output to map
 	labels := strings.Split(strings.TrimSpace(string(output)), " ")
 	labelMap := make(map[string]string)
-	for _, label := include labels {
+	for _, label := range labels {
 		kv := strings.Split(label, ":")
 		if len(kv) != 2 {
 			return fmt.Errorf("invalid label format: %s", label)
