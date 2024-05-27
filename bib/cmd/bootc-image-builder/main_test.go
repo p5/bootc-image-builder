@@ -69,7 +69,7 @@ func TestIsBootcImage(t *testing.T) {
 			}
 			defer func() { mockExecCommand = exec.Command }() // Restore original exec.Command after test
 
-			err := isBootcImage(tc.imgref)
+			err := main.IsBootcImage(tc.imgref)
 			assert.Equal(t, tc.expectedErr, err)
 		})
 	}
